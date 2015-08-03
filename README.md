@@ -2,7 +2,7 @@
 
 Library of graph algorithms we use with Apache Giraph. 
 Documentation can be found in the specific algorithm packages. 
-The licence is GPLv3, so please feel to use the algorithms in your own project.
+The licence is GPLv3, so please feel free to use the algorithms in your own project.
 
 ## BTG Computation
 
