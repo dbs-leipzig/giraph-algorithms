@@ -15,3 +15,8 @@ Finds communities inside networks by propagating vertex labels (communities).
 Vertices migrate to the community represented by the majority of labels sent by its neighbours.
 Our implementation adds a stabilization mechanism and avoids oscillating states.
 See [Wikipedia (Label propagation)(https://en.wikipedia.org/wiki/Label_Propagation_Algorithm).
+
+## AdaptiveRepartitoning
+
+Partitions a graph using label propagation as described in [Adaptive Partitioning of Large-Scale Dynamic Graphs](http://www.few.vu.nl/~cma330/papers/ICDCS14.pdf).
+The implementation uses giraph aggregators to ensure a balanced partition load.
