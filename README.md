@@ -14,7 +14,7 @@ as described in [BIIIG: Enabling Business Intelligence with Integrated Instance 
 Finds communities inside networks by propagating vertex labels (communities). 
 Vertices migrate to the community represented by the majority of labels sent by its neighbours.
 Our implementation adds a stabilization mechanism and avoids oscillating states.
-See [Wikipedia (Label propagation)(https://en.wikipedia.org/wiki/Label_Propagation_Algorithm).
+See [Wikipedia (Label propagation)](https://en.wikipedia.org/wiki/Label_Propagation_Algorithm).
 
 ## AdaptiveRepartitoning
 
