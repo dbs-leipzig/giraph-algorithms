@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with giraph-algorithms. If not, see <http://www.gnu.org/licenses/>.
  */
-
 package de.unileipzig.dbs.giraph.algorithms.adaptiverepartitioning;
 
 import org.apache.giraph.comm.WorkerClientRequestProcessor;
@@ -25,6 +24,7 @@ import org.apache.giraph.graph.Vertex;
 import org.apache.giraph.worker.WorkerContext;
 import org.apache.giraph.worker.WorkerGlobalCommUsage;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import java.util.Random;
  * The first aggregator stores the capacity (CA_i) of partition i, the second
  * stores the demand (DA_i) for that partition (= number of vertices that want
  * to migrate in the next superstep).
- *
+ * <p/>
  * Superstep 0 Initialization Phase:
  * <p/>
  * If the input graph is an unpartitioned graph, the algorithm will at first
@@ -71,13 +71,13 @@ import java.util.Random;
  * number of iterations (configurable) is reached or each vertex reaches the
  * maximum number of partition switches (configurable).
  *
- * @author Kevin Gomez (k.gomez@freenet.de)
+ * @author Kevin Gomez (gomez@studserv.uni-leipzig.de)
  * @author Martin Junghanns (junghanns@informatik.uni-leipzig.de)
  * @see <a href="http://www.few.vu.nl/~cma330/papers/ICDCS14.pdf">Adaptive
  * Partitioning of Large-Scale Dynamic Graphs</a>
  */
 public class ARPComputation extends
-  BasicComputation<IntWritable, ARPVertexValue, NullWritable, IntWritable> {
+  BasicComputation<LongWritable, ARPVertexValue, NullWritable, LongWritable> {
   /**
    * Number of partitions to create.
    */
@@ -94,15 +94,16 @@ public class ARPComputation extends
   /**
    * Default number of iterations if no value is given.
    */
-  public static final int DEFAULT_NUMBER_OF_ITERATIONS = 50;
+  public static final int DEFAULT_NUMBER_OF_ITERATIONS = 10000;
   /**
-   * Number of migrations the vertex can do.
+   * Number of superstep's the vertex needs to be stable to halt
    */
-  public static final String NUMBER_OF_MIGRATIONS = "partitioning.migrations";
+  public static final String NUMBER_OF_STABLE_ITERATIONS =
+    "partitioning.iteration.threshold";
   /**
-   * Default number of migrations if no value is given
+   * Default number of superstep's the vertex needs to be stable to halt
    */
-  public static final int DEFAULT_NUMBER_OF_MIGRATIONS = 30;
+  public static final int DEFAULT_NUMBER_OF_STABLE_ITERATIONS = 30;
   /**
    * Threshold to calculate total partition capacity.
    */
@@ -133,11 +134,11 @@ public class ARPComputation extends
   /**
    * Needed for aggregators.
    */
-  private static final IntWritable POSITIVE_ONE = new IntWritable(1);
+  private static final LongWritable POSITIVE_ONE = new LongWritable(1);
   /**
    * Needed for aggregators.
    */
-  private static final IntWritable NEGATIVE_ONE = new IntWritable(-1);
+  private static final LongWritable NEGATIVE_ONE = new LongWritable(-1);
   /**
    * Total number of available partitions.
    */
@@ -151,13 +152,13 @@ public class ARPComputation extends
    */
   private long totalPartitionCapacity;
   /**
-   * Number of possible migrations
+   * Number of stable superstep's
    */
-  private int maximumVertexMigrations;
+  private int stableThreshold;
   /**
    * Used to decide if the given input is already partitioned or not
    */
-  private boolean isPartitioned;
+  private boolean notPartitioned;
   /**
    * Seed number for random generator
    */
@@ -175,22 +176,22 @@ public class ARPComputation extends
    * @param messages messages sent to current vertex
    * @return desired partition
    */
-  private int getDesiredPartition(
-    final Vertex<IntWritable, ARPVertexValue, NullWritable> vertex,
-    final Iterable<IntWritable> messages) {
-    int currentPartition = vertex.getValue().getCurrentPartition().get();
-    int desiredPartition = currentPartition;
+  private long getDesiredPartition(
+    final Vertex<LongWritable, ARPVertexValue, NullWritable> vertex,
+    final Iterable<LongWritable> messages) {
+    long currentPartition = vertex.getValue().getCurrentPartition().get();
+    long desiredPartition = currentPartition;
     // got messages?
     if (messages.iterator().hasNext()) {
       // partition -> neighbours in partition
-      int[] countNeighbours = getPartitionFrequencies(messages);
+      long[] countNeighbours = getPartitionFrequencies(messages);
       // partition -> desire to migrate
       double[] partitionWeights =
         getPartitionWeights(countNeighbours, vertex.getNumEdges());
       double firstMax = Integer.MIN_VALUE;
       double secondMax = Integer.MIN_VALUE;
-      int firstK = -1;
-      int secondK = -1;
+      long firstK = -1;
+      long secondK = -1;
       for (int i = 0; i < k; i++) {
         if (partitionWeights[i] > firstMax) {
           secondMax = firstMax;
@@ -221,10 +222,12 @@ public class ARPComputation extends
    * @param messages messages sent to the vertex
    * @return partition frequency
    */
-  private int[] getPartitionFrequencies(final Iterable<IntWritable> messages) {
-    int[] result = new int[k];
-    for (IntWritable message : messages) {
-      result[message.get()]++;
+  private long[] getPartitionFrequencies(final Iterable<LongWritable>
+    messages) {
+    long[] result = new long[k];
+    for (LongWritable message : messages) {
+
+      result[(int) message.get()]++;
     }
     return result;
   }
@@ -237,12 +240,12 @@ public class ARPComputation extends
    * @param numEdges             number of outgoing edges
    * @return partition weights
    */
-  private double[] getPartitionWeights(int[] partitionFrequencies,
+  private double[] getPartitionWeights(long[] partitionFrequencies,
     int numEdges) {
     double[] partitionWeights = new double[k];
     for (int i = 0; i < k; i++) {
-      int load = getPartitionLoad(i);
-      int freq = partitionFrequencies[i];
+      long load = getPartitionLoad(i);
+      long freq = partitionFrequencies[i];
       double weight = (double) freq / (load * numEdges);
       partitionWeights[i] = weight;
     }
@@ -257,8 +260,8 @@ public class ARPComputation extends
    * @param desiredPartition desired partition
    * @return true if the vertex is allowed to migrate, false otherwise
    */
-  private boolean isAllowedToMigrate(int desiredPartition) {
-    int load = getPartitionLoad(desiredPartition);
+  private boolean isAllowedToMigrate(long desiredPartition) {
+    long load = getPartitionLoad(desiredPartition);
     long availability = this.totalPartitionCapacity - load;
     double demand = getPartitionDemand(desiredPartition);
     double threshold = availability / demand;
@@ -284,8 +287,8 @@ public class ARPComputation extends
    * @param partition partition id
    * @return demand for partition
    */
-  private int getPartitionDemand(int partition) {
-    IntWritable demandWritable =
+  private long getPartitionDemand(long partition) {
+    LongWritable demandWritable =
       getAggregatedValue(DEMAND_AGGREGATOR_PREFIX + partition);
     return demandWritable.get();
   }
@@ -296,8 +299,8 @@ public class ARPComputation extends
    * @param partition partition id
    * @return load of partition
    */
-  private int getPartitionLoad(int partition) {
-    IntWritable loadWritable =
+  private long getPartitionLoad(long partition) {
+    LongWritable loadWritable =
       getAggregatedValue(CAPACITY_AGGREGATOR_PREFIX + partition);
     return loadWritable.get();
   }
@@ -309,8 +312,8 @@ public class ARPComputation extends
    * @param desiredPartition partition to move vertex to
    */
   private void migrateVertex(
-    final Vertex<IntWritable, ARPVertexValue, NullWritable> vertex,
-    int desiredPartition) {
+    final Vertex<LongWritable, ARPVertexValue, NullWritable> vertex,
+    long desiredPartition) {
     // add current partition to partition history
     vertex.getValue()
       .addToPartitionHistory(vertex.getValue().getCurrentPartition().get());
@@ -321,7 +324,7 @@ public class ARPComputation extends
     // increase capacity in new partition
     String newPartition = CAPACITY_AGGREGATOR_PREFIX + desiredPartition;
     notifyAggregator(newPartition, POSITIVE_ONE);
-    vertex.getValue().setCurrentPartition(new IntWritable(desiredPartition));
+    vertex.getValue().setCurrentPartition(new LongWritable(desiredPartition));
   }
 
   /**
@@ -331,9 +334,9 @@ public class ARPComputation extends
    * @param vertex vertex
    */
   private void setVertexStartValue(
-    final Vertex<IntWritable, ARPVertexValue, NullWritable> vertex) {
-    int startValue = vertex.getId().get() % k;
-    vertex.getValue().setCurrentPartition(new IntWritable(startValue));
+    final Vertex<LongWritable, ARPVertexValue, NullWritable> vertex) {
+    long startValue = vertex.getId().get() % k;
+    vertex.getValue().setCurrentPartition(new LongWritable(startValue));
   }
 
   /**
@@ -342,31 +345,30 @@ public class ARPComputation extends
    * @param aggregator aggregator to send value to
    * @param v          value to send
    */
-  private void notifyAggregator(final String aggregator, final IntWritable v) {
+  private void notifyAggregator(final String aggregator, final LongWritable v) {
     aggregate(aggregator, v);
   }
 
   @Override
   public void initialize(GraphState graphState,
-    WorkerClientRequestProcessor<IntWritable, ARPVertexValue, NullWritable>
+    WorkerClientRequestProcessor<LongWritable, ARPVertexValue, NullWritable>
       workerClientRequestProcessor,
-    GraphTaskManager<IntWritable, ARPVertexValue, NullWritable>
+    GraphTaskManager<LongWritable, ARPVertexValue, NullWritable>
       graphTaskManager,
     WorkerGlobalCommUsage workerGlobalCommUsage, WorkerContext workerContext) {
     super.initialize(graphState, workerClientRequestProcessor, graphTaskManager,
       workerGlobalCommUsage, workerContext);
     this.k =
       getConf().getInt(NUMBER_OF_PARTITIONS, DEFAULT_NUMBER_OF_PARTITIONS);
-    this.maximumVertexMigrations =
-      getConf().getInt(NUMBER_OF_MIGRATIONS, DEFAULT_NUMBER_OF_MIGRATIONS);
+    this.stableThreshold = getConf()
+      .getInt(NUMBER_OF_STABLE_ITERATIONS, DEFAULT_NUMBER_OF_STABLE_ITERATIONS);
     this.capacityThreshold =
       getConf().getFloat(CAPACITY_THRESHOLD, DEFAULT_CAPACITY_THRESHOLD);
     this.totalPartitionCapacity = getTotalCapacity();
-    this.isPartitioned = getConf()
+    this.notPartitioned = getConf()
       .getBoolean(ARPTextVertexInputFormat.PARTITIONED_INPUT,
         ARPTextVertexInputFormat.DEFAULT_PARTITIONED_INPUT);
     this.seed = getConf().getLong(SEED, DEFAULT_SEED);
-
     if (seed != 0) {
       random = new Random(seed);
     } else {
@@ -383,12 +385,10 @@ public class ARPComputation extends
    * @throws IOException
    */
   @Override
-  public void compute(Vertex<IntWritable, ARPVertexValue, NullWritable> vertex,
-    Iterable<IntWritable> messages) throws IOException {
+  public void compute(Vertex<LongWritable, ARPVertexValue, NullWritable> vertex,
+    Iterable<LongWritable> messages) throws IOException {
     if (getSuperstep() == 0) {
-      if (isPartitioned) {
-        setVertexStartValue(vertex);
-      }
+      setVertexStartValue(vertex);
       String aggregator = CAPACITY_AGGREGATOR_PREFIX +
         vertex.getValue().getCurrentPartition().get();
       notifyAggregator(aggregator, POSITIVE_ONE);
@@ -396,26 +396,30 @@ public class ARPComputation extends
     } else {
       // even superstep: migrate phase
       if ((getSuperstep() % 2) == 0) {
-        int desiredPartition = vertex.getValue().getDesiredPartition().get();
-        int currentPartition = vertex.getValue().getCurrentPartition().get();
+        long desiredPartition = vertex.getValue().getDesiredPartition().get();
+        long currentPartition = vertex.getValue().getCurrentPartition().get();
+        long stableCounter = vertex.getValue().getStableCounter().get();
         if (desiredPartition != currentPartition) {
           boolean migrate = isAllowedToMigrate(desiredPartition);
           if (migrate) {
             migrateVertex(vertex, desiredPartition);
             sendMessageToAllEdges(vertex,
               vertex.getValue().getCurrentPartition());
+            vertex.getValue().setStableCounter(new LongWritable(0));
+          } else {
+            stableCounter++;
+            vertex.getValue().setStableCounter(new LongWritable(stableCounter));
           }
         }
         vertex.voteToHalt();
       } else { // odd superstep: demand phase
-        if (vertex.getValue().getPartitionHistoryCount() >=
-          maximumVertexMigrations) {
+        if (vertex.getValue().getStableCounter().get() >= stableThreshold) {
           vertex.voteToHalt();
         } else {
-          int desiredPartition = getDesiredPartition(vertex, messages);
+          long desiredPartition = getDesiredPartition(vertex, messages);
           vertex.getValue()
-            .setDesiredPartition(new IntWritable(desiredPartition));
-          int currentValue = vertex.getValue().getCurrentPartition().get();
+            .setDesiredPartition(new LongWritable(desiredPartition));
+          long currentValue = vertex.getValue().getCurrentPartition().get();
           boolean changed = currentValue != desiredPartition;
           if (changed) {
             notifyAggregator(DEMAND_AGGREGATOR_PREFIX + desiredPartition,

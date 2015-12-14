@@ -18,12 +18,13 @@
 package de.unileipzig.dbs.giraph.algorithms.adaptiverepartitioning;
 
 import org.apache.giraph.aggregators.IntSumAggregator;
+import org.apache.giraph.aggregators.LongSumAggregator;
 import org.apache.giraph.master.DefaultMasterCompute;
 
 /**
  * Master computation for {@link ARPComputation}.
  *
- * @author Kevin Gomez (k.gomez@freenet.de)
+ * @author Kevin Gomez (gomez@studserv.uni-leipzig.de)
  * @author Martin Junghanns (junghanns@informatik.uni-leipzig.de)
  */
 public class ARPMasterComputation extends DefaultMasterCompute {
@@ -36,13 +37,12 @@ public class ARPMasterComputation extends DefaultMasterCompute {
   @Override
   public void initialize() throws IllegalAccessException,
     InstantiationException {
-    int partitionCount = getConf().getInt(ARPComputation.NUMBER_OF_PARTITIONS,
+    int k = getConf().getInt(ARPComputation.NUMBER_OF_PARTITIONS,
       ARPComputation.DEFAULT_NUMBER_OF_PARTITIONS);
-    for (int i = 0; i < partitionCount; i++) {
-      registerAggregator(ARPComputation.DEMAND_AGGREGATOR_PREFIX + i,
-        IntSumAggregator.class);
-      registerPersistentAggregator(
-        ARPComputation.CAPACITY_AGGREGATOR_PREFIX + i, IntSumAggregator.class);
+    for (int i = 0; i < k; i++) {
+      registerAggregator(ARPComputation.DEMAND_AGGREGATOR_PREFIX + i, LongSumAggregator
+        .class);
+      registerPersistentAggregator(ARPComputation.CAPACITY_AGGREGATOR_PREFIX + i, LongSumAggregator.class);
     }
   }
 

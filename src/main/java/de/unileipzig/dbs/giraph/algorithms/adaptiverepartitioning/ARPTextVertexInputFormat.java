@@ -22,6 +22,7 @@ import org.apache.giraph.edge.Edge;
 import org.apache.giraph.edge.EdgeFactory;
 import org.apache.giraph.io.formats.TextVertexInputFormat;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -49,11 +50,11 @@ import java.util.regex.Pattern;
  * <p/>
  * {@code <vertex-id> [<neighbour-id>]*}
  *
- * @author Kevin Gomez (k.gomez@freenet.de)
+ * @author Kevin Gomez (gomez@studserv.uni-leipzig.de)
  * @author Martin Junghanns (junghanns@informatik.uni-leipzig.de)
  */
 public class ARPTextVertexInputFormat extends
-  TextVertexInputFormat<IntWritable, ARPVertexValue, NullWritable> {
+  TextVertexInputFormat<LongWritable, ARPVertexValue, NullWritable> {
 
   /**
    * Used to tell the input format if the input graph is already partitioned.
@@ -116,17 +117,17 @@ public class ARPTextVertexInputFormat extends
     /**
      * Cached vertex id for the current line
      */
-    private int id;
+    private long id;
 
     /**
      * Cached vertex current Partition
      */
-    private int currentPartition = 0;
+    private long currentPartition = 0;
 
     /**
      * Cached vertex desired Partition
      */
-    private int desiredPartition = 0;
+    private long desiredPartition = 0;
 
     /**
      * {@inheritDoc}
@@ -152,9 +153,9 @@ public class ARPTextVertexInputFormat extends
     @Override
     protected String[] preprocessLine(Text line) throws IOException {
       String[] tokens = SEPARATOR.split(line.toString());
-      id = Integer.parseInt(tokens[0]);
+      id = Long.parseLong(tokens[0]);
       if (this.isPartitioned) {
-        currentPartition = Integer.parseInt(tokens[1]);
+        currentPartition = Long.parseLong(tokens[1]);
       }
       return tokens;
     }
@@ -163,8 +164,8 @@ public class ARPTextVertexInputFormat extends
      * {@inheritDoc}
      */
     @Override
-    protected IntWritable getId(String[] tokens) throws IOException {
-      return new IntWritable(id);
+    protected LongWritable getId(String[] tokens) throws IOException {
+      return new LongWritable(id);
     }
 
     /**
@@ -173,8 +174,9 @@ public class ARPTextVertexInputFormat extends
     @Override
     protected ARPVertexValue getValue(String[] tokens) throws IOException {
       ARPVertexValue vertex = new ARPVertexValue();
-      vertex.setCurrentPartition(new IntWritable(currentPartition));
-      vertex.setDesiredPartition(new IntWritable(desiredPartition));
+      vertex.setCurrentPartition(new LongWritable(currentPartition));
+      vertex.setDesiredPartition(new LongWritable(desiredPartition));
+      vertex.setStableCounter(new LongWritable(0));
       return vertex;
     }
 
@@ -182,13 +184,13 @@ public class ARPTextVertexInputFormat extends
      * {@inheritDoc}
      */
     @Override
-    protected Iterable<Edge<IntWritable, NullWritable>> getEdges(
+    protected Iterable<Edge<LongWritable, NullWritable>> getEdges(
       String[] tokens) throws IOException {
-      List<Edge<IntWritable, NullWritable>> edges =
+      List<Edge<LongWritable, NullWritable>> edges =
         Lists.newArrayListWithCapacity(tokens.length - this.edgeOffset);
       for (int n = this.edgeOffset; n < tokens.length; n++) {
         edges.add(
-          EdgeFactory.create(new IntWritable(Integer.parseInt(tokens[n]))));
+          EdgeFactory.create(new LongWritable(Long.parseLong(tokens[n]))));
       }
       return edges;
     }

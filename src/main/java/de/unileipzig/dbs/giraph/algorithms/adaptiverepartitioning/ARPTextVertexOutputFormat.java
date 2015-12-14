@@ -22,6 +22,7 @@ import org.apache.giraph.edge.Edge;
 import org.apache.giraph.graph.Vertex;
 import org.apache.giraph.io.formats.TextVertexOutputFormat;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -33,17 +34,17 @@ import java.io.IOException;
  * <p/>
  * {@code <vertex-id> <partition-id> \[<partition-id>*\] [<neighbour-id>]*}
  *
- * @author Kevin Gomez (k.gomez@freenet.de)
+ * @author Kevin Gomez (gomez@studserv.uni-leipzig.de)
  * @author Martin Junghanns (junghanns@informatik.uni-leipzig.de)
  */
 public class ARPTextVertexOutputFormat extends
-  TextVertexOutputFormat<IntWritable, ARPVertexValue, NullWritable> {
+  TextVertexOutputFormat<LongWritable, ARPVertexValue, NullWritable> {
   /**
    * Tell the output format if the partition history should be printed
    * (default false).
    */
   public static final String PARTITION_HISTORY_OUTPUT =
-    "partitioning.output.partitionhistory";
+    "partitioning.output.partition.history";
   /**
    * Default value for PARTITION_HISTORY_OUTPUT.
    */
@@ -94,7 +95,7 @@ public class ARPTextVertexOutputFormat extends
      */
     @Override
     protected Text convertVertexToLine(
-      Vertex<IntWritable, ARPVertexValue, NullWritable> vertex) throws
+      Vertex<LongWritable, ARPVertexValue, NullWritable> vertex) throws
       IOException {
       // vertex id
       StringBuilder sb = new StringBuilder(vertex.getId().toString());
@@ -113,7 +114,7 @@ public class ARPTextVertexOutputFormat extends
         sb.append(VALUE_TOKEN_SEPARATOR);
       }
       // edges
-      for (Edge<IntWritable, NullWritable> e : vertex.getEdges()) {
+      for (Edge<LongWritable, NullWritable> e : vertex.getEdges()) {
         sb.append(e.getTargetVertexId());
         sb.append(VALUE_TOKEN_SEPARATOR);
       }

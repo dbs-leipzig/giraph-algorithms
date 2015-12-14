@@ -14,11 +14,11 @@
  * You should have received a copy of the GNU General Public License
  * along with giraph-algorithms. If not, see <http://www.gnu.org/licenses/>.
  */
-
 package de.unileipzig.dbs.giraph.algorithms.adaptiverepartitioning;
 
 import com.google.common.collect.Lists;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Writable;
 
 import java.io.DataInput;
@@ -29,39 +29,43 @@ import java.util.List;
 /**
  * Custom vertex used by {@link ARPComputation}.
  *
- * @author Kevin Gomez (k.gomez@freenet.de)
+ * @author Kevin Gomez (gomez@studserv.uni-leipzig.de)
  * @author Martin Junghanns (junghanns@informatik.uni-leipzig.de)
  */
 public class ARPVertexValue implements Writable {
   /**
    * The desired partition the vertex want to migrate to.
    */
-  private int desiredPartition;
+  private long desiredPartition;
   /**
    * The actual partition.
    */
-  private int currentPartition;
+  private long currentPartition;
   /**
    * Contains the partition history of the vertex.
    */
-  private List<Integer> partitionHistory;
+  private List<Long> partitionHistory;
+  /**
+   * The counter how many superstep's the vertex is stable
+   */
+  private long stableCounter;
+
+  /**
+   * Get the current partition
+   *
+   * @return the current partition
+   */
+  public LongWritable getCurrentPartition() {
+    return new LongWritable(this.currentPartition);
+  }
 
   /**
    * Method to set the current partition
    *
    * @param currentPartition current partition
    */
-  public void setCurrentPartition(IntWritable currentPartition) {
+  public void setCurrentPartition(LongWritable currentPartition) {
     this.currentPartition = currentPartition.get();
-  }
-
-  /**
-   * Method to set the lastValue of the vertex
-   *
-   * @param desiredPartition the desired Partition
-   */
-  public void setDesiredPartition(IntWritable desiredPartition) {
-    this.desiredPartition = desiredPartition.get();
   }
 
   /**
@@ -69,17 +73,35 @@ public class ARPVertexValue implements Writable {
    *
    * @return the desired Partition
    */
-  public IntWritable getDesiredPartition() {
-    return new IntWritable(this.desiredPartition);
+  public LongWritable getDesiredPartition() {
+    return new LongWritable(this.desiredPartition);
   }
 
   /**
-   * Get the current partition
+   * Method to set the lastValue of the vertex
    *
-   * @return the current partition
+   * @param desiredPartition the desired Partition
    */
-  public IntWritable getCurrentPartition() {
-    return new IntWritable(this.currentPartition);
+  public void setDesiredPartition(LongWritable desiredPartition) {
+    this.desiredPartition = desiredPartition.get();
+  }
+
+  /**
+   * Get the current stable counter
+   *
+   * @return the stable counter
+   */
+  public LongWritable getStableCounter() {
+    return new LongWritable(this.stableCounter);
+  }
+
+  /**
+   * Set the actual stable counter
+   *
+   * @param stableCounter counter of how many superstep's the vertex is stable
+   */
+  public void setStableCounter(LongWritable stableCounter) {
+    this.stableCounter = stableCounter.get();
   }
 
   /**
@@ -87,7 +109,7 @@ public class ARPVertexValue implements Writable {
    *
    * @return partitionHistory list
    */
-  public List<Integer> getPartitionHistory() {
+  public List<Long> getPartitionHistory() {
     return this.partitionHistory;
   }
 
@@ -96,7 +118,7 @@ public class ARPVertexValue implements Writable {
    *
    * @param partition partition id
    */
-  public void addToPartitionHistory(int partition) {
+  public void addToPartitionHistory(long partition) {
     initList();
     this.partitionHistory.add(partition);
   }
@@ -127,14 +149,15 @@ public class ARPVertexValue implements Writable {
    */
   @Override
   public void write(DataOutput dataOutput) throws IOException {
-    dataOutput.writeInt(this.desiredPartition);
-    dataOutput.writeInt(this.currentPartition);
+    dataOutput.writeLong(this.desiredPartition);
+    dataOutput.writeLong(this.currentPartition);
+    dataOutput.writeLong(this.stableCounter);
     if (partitionHistory == null || partitionHistory.isEmpty()) {
       dataOutput.writeInt(0);
     } else {
       dataOutput.writeInt(partitionHistory.size());
-      for (Integer partitions : partitionHistory) {
-        dataOutput.writeInt(partitions);
+      for (Long partitions : partitionHistory) {
+        dataOutput.writeLong(partitions);
       }
     }
   }
@@ -147,14 +170,15 @@ public class ARPVertexValue implements Writable {
    */
   @Override
   public void readFields(DataInput dataInput) throws IOException {
-    this.desiredPartition = dataInput.readInt();
-    this.currentPartition = dataInput.readInt();
+    this.desiredPartition = dataInput.readLong();
+    this.currentPartition = dataInput.readLong();
+    this.stableCounter = dataInput.readLong();
     final int partitionHistorySize = dataInput.readInt();
     if (partitionHistorySize > 0) {
       initList();
     }
     for (int i = 0; i < partitionHistorySize; i++) {
-      partitionHistory.add(dataInput.readInt());
+      partitionHistory.add(dataInput.readLong());
     }
   }
 }

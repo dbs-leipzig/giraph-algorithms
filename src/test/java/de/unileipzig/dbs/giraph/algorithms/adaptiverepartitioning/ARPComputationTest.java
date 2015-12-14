@@ -25,7 +25,7 @@ public class ARPComputationTest {
     final int numIterations = 120;
     final int stabilizationRounds = 5;
     final long seed = 13374242;
-    String[] graph = GiraphTestHelper.getConnectedGraphWithVertexValues();
+    String[] graph = GiraphTestHelper.getConnectedGraphValues();
     validateConnectedGraphResult(
       computeResults(graph, numPartitions, numIterations, capacityThreshold,
         stabilizationRounds, seed));
@@ -48,8 +48,7 @@ public class ARPComputationTest {
     conf.setInt(ARPComputation.NUMBER_OF_PARTITIONS, partitionCount);
     conf.setInt(ARPComputation.NUMBER_OF_ITERATIONS, maxIterations);
     conf.setFloat(ARPComputation.CAPACITY_THRESHOLD, capacityTreshold);
-    conf
-      .setInt(ARPComputation.NUMBER_OF_MIGRATIONS, maxStabilization);
+    conf.setInt(ARPComputation.NUMBER_OF_STABLE_ITERATIONS, maxStabilization);
     conf.setLong(ARPComputation.SEED, seed);
     conf.setBoolean(ARPTextVertexInputFormat.PARTITIONED_INPUT, true);
     Iterable<String> results = InternalVertexRunner.run(conf, graph);
