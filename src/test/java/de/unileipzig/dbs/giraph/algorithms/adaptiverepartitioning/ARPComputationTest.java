@@ -50,7 +50,6 @@ public class ARPComputationTest {
     conf.setFloat(ARPComputation.CAPACITY_THRESHOLD, capacityTreshold);
     conf.setInt(ARPComputation.NUMBER_OF_STABLE_ITERATIONS, maxStabilization);
     conf.setLong(ARPComputation.SEED, seed);
-    conf.setBoolean(ARPTextVertexInputFormat.PARTITIONED_INPUT, true);
     Iterable<String> results = InternalVertexRunner.run(conf, graph);
     return parseResults(results);
   }

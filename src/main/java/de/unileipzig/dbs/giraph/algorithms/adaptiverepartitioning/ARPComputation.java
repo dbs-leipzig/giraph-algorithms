@@ -23,7 +23,6 @@ import org.apache.giraph.graph.GraphTaskManager;
 import org.apache.giraph.graph.Vertex;
 import org.apache.giraph.worker.WorkerContext;
 import org.apache.giraph.worker.WorkerGlobalCommUsage;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 
@@ -99,7 +98,7 @@ public class ARPComputation extends
    * Number of superstep's the vertex needs to be stable to halt
    */
   public static final String NUMBER_OF_STABLE_ITERATIONS =
-    "partitioning.iteration.threshold";
+    "partitioning.stable.threshold";
   /**
    * Default number of superstep's the vertex needs to be stable to halt
    */
@@ -158,7 +157,7 @@ public class ARPComputation extends
   /**
    * Used to decide if the given input is already partitioned or not
    */
-  private boolean notPartitioned;
+  private boolean isPartitioned;
   /**
    * Seed number for random generator
    */
@@ -222,11 +221,10 @@ public class ARPComputation extends
    * @param messages messages sent to the vertex
    * @return partition frequency
    */
-  private long[] getPartitionFrequencies(final Iterable<LongWritable>
-    messages) {
+  private long[] getPartitionFrequencies(
+    final Iterable<LongWritable> messages) {
     long[] result = new long[k];
     for (LongWritable message : messages) {
-
       result[(int) message.get()]++;
     }
     return result;
@@ -365,7 +363,7 @@ public class ARPComputation extends
     this.capacityThreshold =
       getConf().getFloat(CAPACITY_THRESHOLD, DEFAULT_CAPACITY_THRESHOLD);
     this.totalPartitionCapacity = getTotalCapacity();
-    this.notPartitioned = getConf()
+    this.isPartitioned = getConf()
       .getBoolean(ARPTextVertexInputFormat.PARTITIONED_INPUT,
         ARPTextVertexInputFormat.DEFAULT_PARTITIONED_INPUT);
     this.seed = getConf().getLong(SEED, DEFAULT_SEED);
@@ -388,7 +386,9 @@ public class ARPComputation extends
   public void compute(Vertex<LongWritable, ARPVertexValue, NullWritable> vertex,
     Iterable<LongWritable> messages) throws IOException {
     if (getSuperstep() == 0) {
-      setVertexStartValue(vertex);
+      if(!isPartitioned){
+        setVertexStartValue(vertex);
+      }
       String aggregator = CAPACITY_AGGREGATOR_PREFIX +
         vertex.getValue().getCurrentPartition().get();
       notifyAggregator(aggregator, POSITIVE_ONE);
@@ -413,9 +413,7 @@ public class ARPComputation extends
         }
         vertex.voteToHalt();
       } else { // odd superstep: demand phase
-        if (vertex.getValue().getStableCounter().get() >= stableThreshold) {
-          vertex.voteToHalt();
-        } else {
+        if (vertex.getValue().getStableCounter().get() < stableThreshold) {
           long desiredPartition = getDesiredPartition(vertex, messages);
           vertex.getValue()
             .setDesiredPartition(new LongWritable(desiredPartition));
@@ -425,6 +423,8 @@ public class ARPComputation extends
             notifyAggregator(DEMAND_AGGREGATOR_PREFIX + desiredPartition,
               POSITIVE_ONE);
           }
+        } else {
+          vertex.voteToHalt();
         }
       }
     }
